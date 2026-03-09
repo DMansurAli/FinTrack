@@ -18,8 +18,8 @@ This project is built **step by step** — each step introduces new patterns and
 ### Endpoints
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | /api/auth/register | ❌ | Create account, returns JWT |
-| POST | /api/auth/login | ❌ | Login, returns JWT |
+| POST | /api/auth/register | ✅ | Create account, returns JWT |
+| POST | /api/auth/login | ✅ | Login, returns JWT |
 | GET | /api/wallets | ✅ | List your wallets |
 | GET | /api/wallets/{id} | ✅ | Get one wallet |
 | POST | /api/wallets | ✅ | Create wallet |
