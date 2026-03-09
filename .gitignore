@@ -1,0 +1,23 @@
+﻿# Build outputs
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+.vs/
+
+# Environment / secrets
+appsettings.Production.json
+*.env
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# dotnet tools
+.config/
+
+# OS
+.DS_Store
+Thumbs.db
