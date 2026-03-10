@@ -4,13 +4,17 @@ A personal finance REST API built with ASP.NET Core 10, EF Core, PostgreSQL and 
 
 This project is built **step by step** — each step introduces new patterns and concepts on top of the previous one.
 
-## Current Step: Step 1 — Minimal REST API
+---
+
+## Step 1 — Minimal REST API (`/FinTrack`)
+
+Single-project API. The focus is on getting a working, tested REST API with auth and a real database.
 
 ### Tech Stack
 | Concern | Technology |
 |---|---|
 | Runtime | .NET 10, ASP.NET Core 10 |
-| Database | PostgreSQL (EF Core 9) |
+| Database | PostgreSQL (EF Core 10) |
 | Auth | JWT (HS256) + BCrypt passwords |
 | Docs | Swagger UI |
 | Tests | xUnit + FluentAssertions |
@@ -18,8 +22,8 @@ This project is built **step by step** — each step introduces new patterns and
 ### Endpoints
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | /api/auth/register | ✅ | Create account, returns JWT |
-| POST | /api/auth/login | ✅ | Login, returns JWT |
+| POST | /api/auth/register | ❌ | Create account, returns JWT |
+| POST | /api/auth/login | ❌ | Login, returns JWT |
 | GET | /api/wallets | ✅ | List your wallets |
 | GET | /api/wallets/{id} | ✅ | Get one wallet |
 | POST | /api/wallets | ✅ | Create wallet |
@@ -27,42 +31,32 @@ This project is built **step by step** — each step introduces new patterns and
 | DELETE | /api/wallets/{id} | ✅ | Delete wallet |
 
 ### Running Locally
-
-**Prerequisites:** .NET 10 SDK, Docker Desktop
 ```bash
-# Start PostgreSQL
+cd FinTrack
 docker compose up -d
-
-# Run the API (auto-migrates on first start)
 dotnet run --project src/FinTrack.Api
-
-# Open Swagger
-# http://localhost:5168/docs
+# API: http://localhost:5168/docs
 ```
 
-### Running Tests
+### Tests
 ```bash
-dotnet test tests/FinTrack.Tests
+dotnet test FinTrack/tests/FinTrack.Tests
+# 19 tests, no Docker required
 ```
-
-19 tests, all passing, no Docker required.
 
 ### Project Structure
 ```
 FinTrack/
-├── src/
-│   └── FinTrack.Api/
-│       ├── Controllers/     ← AuthController, WalletsController
-│       ├── Data/            ← AppDbContext, Migrations
-│       ├── Middleware/      ← Global error handling
-│       ├── Models/          ← User, Wallet
-│       ├── Services/        ← JwtService
-│       └── Program.cs
-├── tests/
-│   └── FinTrack.Tests/
-│       ├── Auth/            ← 8 auth tests
-│       └── Wallets/         ← 11 wallet tests
-└── docker-compose.yml
+├── src/FinTrack.Api/
+│   ├── Controllers/     ← AuthController, WalletsController
+│   ├── Data/            ← AppDbContext, Migrations
+│   ├── Middleware/      ← Global error handling
+│   ├── Models/          ← User, Wallet
+│   ├── Services/        ← JwtService
+│   └── Program.cs
+└── tests/FinTrack.Tests/
+    ├── Auth/            ← 8 tests
+    └── Wallets/         ← 11 tests
 ```
 
 ### Key Decisions
@@ -74,11 +68,77 @@ FinTrack/
 
 ---
 
+## Step 2 — Clean Architecture (`/FinTrackV2`)
+
+Same endpoints, rebuilt with 4-layer Clean Architecture, CQRS, and the Result pattern. Every layer has a single responsibility and strict dependency rules.
+
+### Architecture
+```
+Api → Application → Domain
+Infrastructure → Domain + Application
+```
+
+| Layer | Responsibility |
+|---|---|
+| Domain | Entities, Result pattern, error constants — zero dependencies |
+| Application | Commands, Queries, handlers, validators — no EF Core, no HTTP |
+| Infrastructure | EF Core, BCrypt, JWT — implements Application interfaces |
+| Api | Controllers, middleware — translates HTTP to/from MediatR |
+
+### New Patterns
+| Pattern | What it does |
+|---|---|
+| CQRS + MediatR | Every operation is an explicit Command or Query |
+| Result pattern | Handlers return `Result<T>` instead of throwing exceptions |
+| Repository pattern | Handlers never touch EF Core directly |
+| FluentValidation pipeline | Validation runs before every handler automatically |
+
+### Running Locally
+```bash
+cd FinTrackV2
+docker compose up -d   # reuse same Postgres container
+dotnet run --project src/FinTrack.Api
+# API: http://localhost:5153/docs
+```
+
+### Tests
+```bash
+dotnet test FinTrackV2/tests/FinTrack.Tests
+# 17 tests — handlers tested directly, no HTTP context needed
+```
+
+### Project Structure
+```
+FinTrackV2/
+├── src/
+│   ├── FinTrack.Domain/
+│   │   ├── Entities/        ← User, Wallet (factory methods, private setters)
+│   │   ├── Common/          ← Result<T>, Error
+│   │   └── Errors/          ← UserErrors, WalletErrors
+│   ├── FinTrack.Application/
+│   │   ├── Auth/Commands/   ← RegisterUser, LoginUser
+│   │   ├── Wallets/         ← Commands + Queries
+│   │   ├── Interfaces/      ← IUserRepository, IWalletRepository, IJwtService
+│   │   └── Common/Behaviors/← ValidationBehavior (MediatR pipeline)
+│   ├── FinTrack.Infrastructure/
+│   │   ├── Persistence/     ← AppDbContext, UserRepository, WalletRepository
+│   │   └── Auth/            ← JwtService, PasswordHasher
+│   └── FinTrack.Api/
+│       ├── Controllers/     ← Thin controllers (~5 lines each)
+│       └── Middleware/      ← Global error handling
+└── tests/FinTrack.Tests/
+    ├── Auth/                ← 8 handler tests
+    ├── Wallets/             ← 9 handler tests
+    └── Common/              ← FakePasswordHasher, FakeJwtService, TestDbContext
+```
+
+---
+
 ## Roadmap
 
 - [x] Step 1 — Minimal REST API
-- [ ] Step 2 — Clean Architecture (Domain / Application / Infrastructure / Api layers, MediatR, CQRS)
-- [ ] Step 3 — Full Feature Set (domain model, business rules, TestContainers)
-- [ ] Step 4 — Resilience (Serilog, rate limiting, pagination, Repository + UoW)
-- [ ] Step 5 — Events (domain events, Outbox pattern, background jobs)
-- [ ] Step 6 — Microservices (gRPC, RabbitMQ, API Gateway)
+- [x] Step 2 — Clean Architecture (CQRS, MediatR, Result pattern, FluentValidation)
+- [ ] Step 3 — Full Feature Set (domain events, business rules, TestContainers)
+- [ ] Step 4 — Resilience (Serilog, rate limiting, pagination, Unit of Work)
+- [ ] Step 5 — Events (Outbox pattern, background jobs, notifications)
+- [ ] Step 6 — Microservices (gRPC, RabbitMQ, MassTransit, API Gateway)
