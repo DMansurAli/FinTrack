@@ -1,4 +1,6 @@
 ﻿using FinTrack.Domain.Entities;
+using FinTrack.Domain.Enums;
+using FinTrack.Infrastructure.Audit;
 using Microsoft.EntityFrameworkCore;
 
 namespace FinTrack.Infrastructure.Persistence;
@@ -9,6 +11,8 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Wallet> Wallets => Set<Wallet>();
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -32,6 +36,27 @@ public class AppDbContext : DbContext
              .WithMany(u => u.Wallets)
              .HasForeignKey(w => w.UserId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Transaction>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Amount).HasColumnType("numeric(18,2)");
+            e.Property(t => t.BalanceBefore).HasColumnType("numeric(18,2)");
+            e.Property(t => t.BalanceAfter).HasColumnType("numeric(18,2)");
+            e.Property(t => t.Description).HasMaxLength(200);
+            e.Property(t => t.Type).HasConversion<int>();
+            e.HasOne(t => t.Wallet)
+             .WithMany(w => w.Transactions)
+             .HasForeignKey(t => t.WalletId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AuditLog>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.EventType).HasMaxLength(100).IsRequired();
+            e.Property(a => a.Payload).IsRequired();
         });
 
         base.OnModelCreating(modelBuilder);

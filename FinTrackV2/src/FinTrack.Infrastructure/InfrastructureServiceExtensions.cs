@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using FinTrack.Application.Interfaces;
 using FinTrack.Infrastructure.Auth;
+using FinTrack.Infrastructure.Events;
 using FinTrack.Infrastructure.Persistence;
 using FinTrack.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -21,12 +22,16 @@ public static class InfrastructureServiceExtensions
         services.AddDbContext<AppDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Default")));
 
-        // Repositories — bind interfaces to implementations
-        services.AddScoped<IUserRepository,   UserRepository>();
-        services.AddScoped<IWalletRepository, WalletRepository>();
+        // Repositories
+        services.AddScoped<IUserRepository,        UserRepository>();
+        services.AddScoped<IWalletRepository,      WalletRepository>();
+        services.AddScoped<ITransactionRepository, TransactionRepository>();
 
-        // Auth services
-        services.AddScoped<IJwtService,    JwtService>();
+        // Domain event dispatcher
+        services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
+
+        // Auth
+        services.AddScoped<IJwtService,     JwtService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
 
         // JWT authentication

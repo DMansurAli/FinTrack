@@ -1,4 +1,5 @@
-﻿using FinTrack.Application.Wallets.Commands.CreateWallet;
+﻿using FinTrack.Application.Interfaces;
+using FinTrack.Application.Wallets.Commands.CreateWallet;
 using FinTrack.Application.Wallets.Commands.DeleteWallet;
 using FinTrack.Application.Wallets.Commands.UpdateWallet;
 using FinTrack.Application.Wallets.Queries.GetWalletById;
@@ -6,6 +7,7 @@ using FinTrack.Application.Wallets.Queries.GetWallets;
 using FinTrack.Domain.Common;
 using FinTrack.Domain.Entities;
 using FinTrack.Domain.Errors;
+using FinTrack.Domain.Events;
 using FinTrack.Infrastructure.Persistence;
 using FinTrack.Infrastructure.Persistence.Repositories;
 using FinTrack.Tests.Common;
@@ -13,11 +15,27 @@ using FluentAssertions;
 
 namespace FinTrack.Tests.Wallets;
 
+/// <summary>
+/// No-op dispatcher for unit tests — we don't want side effects (audit logs)
+/// firing in unit tests. Integration tests will verify the full event pipeline.
+/// </summary>
+public sealed class FakeDomainEventDispatcher : IDomainEventDispatcher
+{
+    public List<IDomainEvent> DispatchedEvents { get; } = [];
+
+    public Task DispatchAsync(IReadOnlyList<IDomainEvent> domainEvents, CancellationToken ct = default)
+    {
+        DispatchedEvents.AddRange(domainEvents);
+        return Task.CompletedTask;
+    }
+}
+
 public class WalletHandlerTests
 {
     private readonly AppDbContext _db;
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _otherUserId = Guid.NewGuid();
+    private readonly FakeDomainEventDispatcher _dispatcher = new();
 
     private readonly CreateWalletHandler  _createHandler;
     private readonly UpdateWalletHandler  _updateHandler;
@@ -34,7 +52,7 @@ public class WalletHandlerTests
         _db.SaveChanges();
 
         var wallets     = new WalletRepository(_db);
-        _createHandler  = new CreateWalletHandler(wallets);
+        _createHandler  = new CreateWalletHandler(wallets, _dispatcher);
         _updateHandler  = new UpdateWalletHandler(wallets);
         _deleteHandler  = new DeleteWalletHandler(wallets);
         _getallHandler  = new GetWalletsHandler(wallets);
@@ -56,6 +74,15 @@ public class WalletHandlerTests
         result.Value.Name.Should().Be("Savings");
         result.Value.Currency.Should().Be("USD");
         result.Value.Balance.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Create_RaisesWalletCreatedEvent()
+    {
+        await CreateWallet("Savings");
+
+        _dispatcher.DispatchedEvents
+            .Should().ContainSingle(e => e is WalletCreatedEvent);
     }
 
     [Fact]
