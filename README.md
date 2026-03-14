@@ -200,11 +200,52 @@ FinTrackV2/
 
 ---
 
+## Step 4 — Resilience (`/FinTrackV2`, extended)
+
+Built on top of Step 3. Adds structured logging, rate limiting, and pagination.
+
+### New Patterns
+| Pattern | What it does |
+|---|---|
+| Serilog | Structured logging to console + rolling daily file — every request logs userId, method, path, status, duration |
+| Rate limiting | Auth endpoints: 5 req/min per IP. API endpoints: 60 req/min. Returns `429` with JSON error |
+| Pagination | `GET /transactions` accepts `?page=1&pageSize=20`, returns `PagedResult<T>` with metadata |
+
+### Pagination Response Shape
+```json
+{
+  "items": [...],
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 347,
+  "totalPages": 18,
+  "hasNextPage": true,
+  "hasPreviousPage": false
+}
+```
+
+### Running Locally
+```bash
+cd FinTrackV2
+docker compose up -d
+dotnet run --project src/FinTrack.Api
+# API:  http://localhost:5153/docs
+# Logs: FinTrackV2/src/FinTrack.Api/logs/
+```
+
+### Tests
+```bash
+dotnet test tests/FinTrack.Tests
+# 22 tests — all passing (pagination tested via integration tests)
+```
+
+---
+
 ## Roadmap
 
 - [x] Step 1 — Minimal REST API
 - [x] Step 2 — Clean Architecture (CQRS, MediatR, Result pattern, FluentValidation)
 - [x] Step 3 — Full Feature Set (domain events, transactions, audit log, TestContainers)
-- [ ] Step 4 — Resilience (Serilog, rate limiting, pagination, Unit of Work)
+- [x] Step 4 — Resilience (Serilog structured logging, rate limiting, pagination)
 - [ ] Step 5 — Events (Outbox pattern, background jobs, notifications)
 - [ ] Step 6 — Microservices (gRPC, RabbitMQ, MassTransit, API Gateway)
