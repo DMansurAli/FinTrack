@@ -16,6 +16,22 @@ public sealed class TransactionRepository : ITransactionRepository
            .OrderByDescending(t => t.CreatedAt)
            .ToListAsync(ct);
 
+    public async Task<(List<Transaction> Items, int TotalCount)> GetPagedByWalletIdAsync(
+        Guid walletId, int page, int pageSize, CancellationToken ct = default)
+    {
+        var query = _db.Transactions
+            .Where(t => t.WalletId == walletId)
+            .OrderByDescending(t => t.CreatedAt);
+
+        var totalCount = await query.CountAsync(ct);
+        var items      = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return (items, totalCount);
+    }
+
     public async Task AddAsync(Transaction transaction, CancellationToken ct = default) =>
         await _db.Transactions.AddAsync(transaction, ct);
 

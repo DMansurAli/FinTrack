@@ -7,6 +7,7 @@ using FinTrack.Application.Wallets.Queries.GetWallets;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FinTrack.Api.Controllers;
 
@@ -14,6 +15,7 @@ namespace FinTrack.Api.Controllers;
 [Route("api/[controller]")]
 [Authorize]
 [Produces("application/json")]
+[EnableRateLimiting("api")]
 public class WalletsController : ControllerBase
 {
     private readonly ISender _sender;

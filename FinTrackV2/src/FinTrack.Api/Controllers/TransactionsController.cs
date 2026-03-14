@@ -5,6 +5,7 @@ using FinTrack.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FinTrack.Api.Controllers;
 
@@ -12,6 +13,7 @@ namespace FinTrack.Api.Controllers;
 [Route("api/wallets/{walletId:guid}/transactions")]
 [Authorize]
 [Produces("application/json")]
+[EnableRateLimiting("api")]
 public class TransactionsController : ControllerBase
 {
     private readonly ISender _sender;
@@ -24,11 +26,19 @@ public class TransactionsController : ControllerBase
 
     public record CreateTransactionRequest(TransactionType Type, decimal Amount, string Description);
 
-    /// <summary>Get all transactions for a wallet.</summary>
+    /// <summary>Get paginated transactions for a wallet.</summary>
+    /// <param name="walletId">The wallet ID.</param>
+    /// <param name="page">Page number (default: 1).</param>
+    /// <param name="pageSize">Items per page (default: 20, max: 100).</param>
     [HttpGet]
-    public async Task<IActionResult> GetAll(Guid walletId, CancellationToken ct)
+    public async Task<IActionResult> GetAll(
+        Guid walletId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
-        var result = await _sender.Send(new GetTransactionsQuery(walletId, UserId), ct);
+        var result = await _sender.Send(
+            new GetTransactionsQuery(walletId, UserId, page, pageSize), ct);
 
         return result.IsFailure
             ? NotFound(new { result.Error.Code, result.Error.Message })
