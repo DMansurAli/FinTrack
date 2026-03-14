@@ -22,8 +22,8 @@ Single-project API. The focus is on getting a working, tested REST API with auth
 ### Endpoints
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | /api/auth/register | ❌ | Create account, returns JWT |
-| POST | /api/auth/login | ❌ | Login, returns JWT |
+| POST | /api/auth/register | ✅ | Create account, returns JWT |
+| POST | /api/auth/login | ✅ | Login, returns JWT |
 | GET | /api/wallets | ✅ | List your wallets |
 | GET | /api/wallets/{id} | ✅ | Get one wallet |
 | POST | /api/wallets | ✅ | Create wallet |
@@ -40,7 +40,7 @@ dotnet run --project src/FinTrack.Api
 
 ### Tests
 ```bash
-dotnet test FinTrack/tests/FinTrack.Tests
+dotnet test tests/FinTrack.Tests
 # 19 tests, no Docker required
 ```
 
@@ -96,14 +96,14 @@ Infrastructure → Domain + Application
 ### Running Locally
 ```bash
 cd FinTrackV2
-docker compose up -d   # reuse same Postgres container
+docker compose up -d
 dotnet run --project src/FinTrack.Api
 # API: http://localhost:5153/docs
 ```
 
 ### Tests
 ```bash
-dotnet test FinTrackV2/tests/FinTrack.Tests
+dotnet test tests/FinTrack.Tests
 # 17 tests — handlers tested directly, no HTTP context needed
 ```
 
@@ -113,7 +113,7 @@ FinTrackV2/
 ├── src/
 │   ├── FinTrack.Domain/
 │   │   ├── Entities/        ← User, Wallet (factory methods, private setters)
-│   │   ├── Common/          ← Result<T>, Error
+│   │   ├── Common/          ← Result<T>, Error, AggregateRoot
 │   │   └── Errors/          ← UserErrors, WalletErrors
 │   ├── FinTrack.Application/
 │   │   ├── Auth/Commands/   ← RegisterUser, LoginUser
@@ -134,11 +134,77 @@ FinTrackV2/
 
 ---
 
+## Step 3 — Full Feature Set (`/FinTrackV2`, extended)
+
+Built on top of Step 2. Adds transactions, domain events, an audit log, and integration tests against a real database.
+
+### New Endpoints
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | /api/wallets/{id}/transactions | ✅ | List transactions for a wallet |
+| POST | /api/wallets/{id}/transactions | ✅ | Deposit or withdraw |
+
+### New Patterns
+| Pattern | What it does |
+|---|---|
+| Domain events | Entities raise events (e.g. `WalletCreatedEvent`) — handlers react without coupling |
+| AggregateRoot | Base class that collects domain events raised during an operation |
+| Business rules on entities | `Wallet.Deposit()` and `Wallet.Withdraw()` enforce rules and update balance atomically |
+| Audit log | Every domain event is persisted to `AuditLogs` table as a JSON payload |
+| TestContainers | Integration tests spin up a real PostgreSQL container, run migrations, verify SQL |
+
+### Domain Event Flow
+```
+POST /api/wallets/{id}/transactions
+  → CreateTransactionHandler
+    → wallet.Deposit(100)           ← business rule enforced, event raised
+      → TransactionCreatedEvent
+    → DomainEventDispatcher.Publish()
+      → TransactionCreatedAuditHandler  ← writes audit record
+```
+
+### Running Locally
+```bash
+cd FinTrackV2
+docker compose up -d
+dotnet run --project src/FinTrack.Api
+# API: http://localhost:5153/docs
+```
+
+### Tests
+```bash
+dotnet test tests/FinTrack.Tests
+# 22 tests total:
+#   18 unit tests  — run in <2s, no Docker needed
+#    4 integration tests — spin up real PostgreSQL via TestContainers
+```
+
+### New Project Structure (additions to Step 2)
+```
+FinTrackV2/
+├── src/
+│   ├── FinTrack.Domain/
+│   │   ├── Entities/Transaction.cs
+│   │   ├── Enums/TransactionType.cs
+│   │   ├── Events/              ← IDomainEvent, WalletCreatedEvent, TransactionCreatedEvent
+│   │   └── Errors/TransactionErrors.cs
+│   ├── FinTrack.Application/
+│   │   ├── Transactions/        ← CreateTransaction command, GetTransactions query
+│   │   └── Interfaces/          ← ITransactionRepository, IDomainEventDispatcher
+│   ├── FinTrack.Infrastructure/
+│   │   ├── Audit/               ← AuditLog entity, WalletCreatedAuditHandler, TransactionCreatedAuditHandler
+│   │   └── Events/DomainEventDispatcher.cs
+└── tests/FinTrack.Tests/
+    └── Integration/             ← DatabaseFixture (TestContainers), WalletIntegrationTests
+```
+
+---
+
 ## Roadmap
 
 - [x] Step 1 — Minimal REST API
 - [x] Step 2 — Clean Architecture (CQRS, MediatR, Result pattern, FluentValidation)
-- [ ] Step 3 — Full Feature Set (domain events, business rules, TestContainers)
+- [x] Step 3 — Full Feature Set (domain events, transactions, audit log, TestContainers)
 - [ ] Step 4 — Resilience (Serilog, rate limiting, pagination, Unit of Work)
 - [ ] Step 5 — Events (Outbox pattern, background jobs, notifications)
 - [ ] Step 6 — Microservices (gRPC, RabbitMQ, MassTransit, API Gateway)
