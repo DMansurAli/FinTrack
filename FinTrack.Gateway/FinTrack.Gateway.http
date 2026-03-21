@@ -1,0 +1,6 @@
+@FinTrack.Gateway_HostAddress = http://localhost:5221
+
+GET {{FinTrack.Gateway_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,23 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "FinTrack.Contracts";
+
+package identity;
+
+// IdentityService exposes this gRPC service.
+// WalletService uses the generated client to call it.
+service IdentityGrpc {
+  // Validate a userId exists — called by WalletService before creating a wallet.
+  rpc GetUser (GetUserRequest) returns (GetUserReply);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserReply {
+  bool   found      = 1;
+  string user_id    = 2;
+  string email      = 3;
+  string first_name = 4;
+}

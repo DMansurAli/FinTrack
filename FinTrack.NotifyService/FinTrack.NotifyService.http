@@ -1,0 +1,6 @@
+@FinTrack.NotifyService_HostAddress = http://localhost:5198
+
+GET {{FinTrack.NotifyService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

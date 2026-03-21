@@ -1,0 +1,6 @@
+@FinTrack.IdentityService_HostAddress = http://localhost:5035
+
+GET {{FinTrack.IdentityService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

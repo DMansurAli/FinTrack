@@ -5,4 +5,9 @@
   <Folder Name="/tests/">
     <Project Path="tests/FinTrack.Tests/FinTrack.Tests.csproj" />
   </Folder>
+  <Project Path="FinTrack.Contracts/FinTrack.Contracts.csproj" />
+  <Project Path="FinTrack.Gateway/FinTrack.Gateway.csproj" />
+  <Project Path="FinTrack.IdentityService/FinTrack.IdentityService.csproj" />
+  <Project Path="FinTrack.NotifyService/FinTrack.NotifyService.csproj" />
+  <Project Path="FinTrack.WalletService/FinTrack.WalletService.csproj" />
 </Solution>

@@ -1,0 +1,57 @@
+﻿services:
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: fintrack-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP protocol (services connect here)
+      - "15672:15672"  # Management UI — http://localhost:15672 guest/guest
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  identity-db:
+    image: postgres:16-alpine
+    container_name: fintrack-identity-db
+    environment:
+      POSTGRES_DB:       identity_db
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - identity-db-data:/var/lib/postgresql/data
+
+  wallet-db:
+    image: postgres:16-alpine
+    container_name: fintrack-wallet-db
+    environment:
+      POSTGRES_DB:       wallet_db
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - wallet-db-data:/var/lib/postgresql/data
+
+  notification-db:
+    image: postgres:16-alpine
+    container_name: fintrack-notification-db
+    environment:
+      POSTGRES_DB:       notification_db
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - notification-db-data:/var/lib/postgresql/data
+
+volumes:
+  identity-db-data:
+  wallet-db-data:
+  notification-db-data:
