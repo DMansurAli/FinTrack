@@ -1,7 +1,9 @@
 ﻿using System.Text;
 using FinTrack.Application.Interfaces;
 using FinTrack.Infrastructure.Auth;
+using FinTrack.Infrastructure.Email;
 using FinTrack.Infrastructure.Events;
+using FinTrack.Infrastructure.Jobs;
 using FinTrack.Infrastructure.Persistence;
 using FinTrack.Infrastructure.Persistence.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -18,23 +20,31 @@ public static class InfrastructureServiceExtensions
         this IServiceCollection services,
         IConfiguration config)
     {
-        // Database
+        // ── Database ──────────────────────────────────────────────────────
         services.AddDbContext<AppDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Default")));
 
-        // Repositories
-        services.AddScoped<IUserRepository,        UserRepository>();
-        services.AddScoped<IWalletRepository,      WalletRepository>();
-        services.AddScoped<ITransactionRepository, TransactionRepository>();
+        // ── Repositories ──────────────────────────────────────────────────
+        services.AddScoped<IUserRepository,         UserRepository>();
+        services.AddScoped<IWalletRepository,       WalletRepository>();
+        services.AddScoped<ITransactionRepository,  TransactionRepository>();
+        services.AddScoped<IOutboxRepository,       OutboxRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
 
-        // Domain event dispatcher
-        services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
+        // ── Domain event dispatcher ───────────────────────────────────────
+        services.AddScoped<IDomainEventDispatcher,  DomainEventDispatcher>();
 
-        // Auth
+        // ── Auth ──────────────────────────────────────────────────────────
         services.AddScoped<IJwtService,     JwtService>();
         services.AddScoped<IPasswordHasher, PasswordHasher>();
 
-        // JWT authentication
+        // ── Email (swap ConsoleEmailService for SendGrid in production) ───
+        services.AddScoped<IEmailService, ConsoleEmailService>();
+
+        // ── Background job ────────────────────────────────────────────────
+        services.AddHostedService<OutboxProcessor>();
+
+        // ── JWT authentication ────────────────────────────────────────────
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(opts =>
             {

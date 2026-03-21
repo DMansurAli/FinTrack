@@ -4,10 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FinTrack.Infrastructure.Persistence.Repositories;
 
-/// <summary>
-/// Implements IUserRepository using EF Core.
-/// The Application layer never sees EF Core — only this interface.
-/// </summary>
 public sealed class UserRepository : IUserRepository
 {
     private readonly AppDbContext _db;
@@ -16,6 +12,9 @@ public sealed class UserRepository : IUserRepository
 
     public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default) =>
         _db.Users.FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant(), ct);
+
+    public Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
+        _db.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
 
     public Task<bool> ExistsWithEmailAsync(string email, CancellationToken ct = default) =>
         _db.Users.AnyAsync(u => u.Email == email.ToLowerInvariant(), ct);
