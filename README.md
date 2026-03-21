@@ -44,46 +44,11 @@ dotnet test tests/FinTrack.Tests
 # 19 tests, no Docker required
 ```
 
-### Project Structure
-```
-FinTrack/
-├── src/FinTrack.Api/
-│   ├── Controllers/     ← AuthController, WalletsController
-│   ├── Data/            ← AppDbContext, Migrations
-│   ├── Middleware/      ← Global error handling
-│   ├── Models/          ← User, Wallet
-│   ├── Services/        ← JwtService
-│   └── Program.cs
-└── tests/FinTrack.Tests/
-    ├── Auth/            ← 8 tests
-    └── Wallets/         ← 11 tests
-```
-
-### Key Decisions
-- **Ownership isolation** — every wallet query filters by the logged-in user's ID
-- **No email enumeration** — wrong password and unknown email both return 401 with the same message
-- **BCrypt work factor 12** — secure password hashing
-- **Auto-migrate on startup** — convenient for development
-- **In-memory DB for tests** — fast tests, no Docker needed
-
 ---
 
 ## Step 2 — Clean Architecture (`/FinTrackV2`)
 
-Same endpoints, rebuilt with 4-layer Clean Architecture, CQRS, and the Result pattern. Every layer has a single responsibility and strict dependency rules.
-
-### Architecture
-```
-Api → Application → Domain
-Infrastructure → Domain + Application
-```
-
-| Layer | Responsibility |
-|---|---|
-| Domain | Entities, Result pattern, error constants — zero dependencies |
-| Application | Commands, Queries, handlers, validators — no EF Core, no HTTP |
-| Infrastructure | EF Core, BCrypt, JWT — implements Application interfaces |
-| Api | Controllers, middleware — translates HTTP to/from MediatR |
+Same endpoints, rebuilt with 4-layer Clean Architecture, CQRS, and the Result pattern.
 
 ### New Patterns
 | Pattern | What it does |
@@ -107,36 +72,11 @@ dotnet test tests/FinTrack.Tests
 # 17 tests — handlers tested directly, no HTTP context needed
 ```
 
-### Project Structure
-```
-FinTrackV2/
-├── src/
-│   ├── FinTrack.Domain/
-│   │   ├── Entities/        ← User, Wallet (factory methods, private setters)
-│   │   ├── Common/          ← Result<T>, Error, AggregateRoot
-│   │   └── Errors/          ← UserErrors, WalletErrors
-│   ├── FinTrack.Application/
-│   │   ├── Auth/Commands/   ← RegisterUser, LoginUser
-│   │   ├── Wallets/         ← Commands + Queries
-│   │   ├── Interfaces/      ← IUserRepository, IWalletRepository, IJwtService
-│   │   └── Common/Behaviors/← ValidationBehavior (MediatR pipeline)
-│   ├── FinTrack.Infrastructure/
-│   │   ├── Persistence/     ← AppDbContext, UserRepository, WalletRepository
-│   │   └── Auth/            ← JwtService, PasswordHasher
-│   └── FinTrack.Api/
-│       ├── Controllers/     ← Thin controllers (~5 lines each)
-│       └── Middleware/      ← Global error handling
-└── tests/FinTrack.Tests/
-    ├── Auth/                ← 8 handler tests
-    ├── Wallets/             ← 9 handler tests
-    └── Common/              ← FakePasswordHasher, FakeJwtService, TestDbContext
-```
-
 ---
 
 ## Step 3 — Full Feature Set (`/FinTrackV2`, extended)
 
-Built on top of Step 2. Adds transactions, domain events, an audit log, and integration tests against a real database.
+Adds transactions, domain events, audit log, and integration tests.
 
 ### New Endpoints
 | Method | Route | Auth | Description |
@@ -147,82 +87,30 @@ Built on top of Step 2. Adds transactions, domain events, an audit log, and inte
 ### New Patterns
 | Pattern | What it does |
 |---|---|
-| Domain events | Entities raise events (e.g. `WalletCreatedEvent`) — handlers react without coupling |
-| AggregateRoot | Base class that collects domain events raised during an operation |
-| Business rules on entities | `Wallet.Deposit()` and `Wallet.Withdraw()` enforce rules and update balance atomically |
-| Audit log | Every domain event is persisted to `AuditLogs` table as a JSON payload |
-| TestContainers | Integration tests spin up a real PostgreSQL container, run migrations, verify SQL |
-
-### Domain Event Flow
-```
-POST /api/wallets/{id}/transactions
-  → CreateTransactionHandler
-    → wallet.Deposit(100)           ← business rule enforced, event raised
-      → TransactionCreatedEvent
-    → DomainEventDispatcher.Publish()
-      → TransactionCreatedAuditHandler  ← writes audit record
-```
-
-### Running Locally
-```bash
-cd FinTrackV2
-docker compose up -d
-dotnet run --project src/FinTrack.Api
-# API: http://localhost:5153/docs
-```
+| Domain events | Entities raise events — handlers react without coupling |
+| AggregateRoot | Base class that collects domain events |
+| Business rules on entities | `Wallet.Deposit()` and `Wallet.Withdraw()` enforce rules atomically |
+| Audit log | Every domain event persisted to `AuditLogs` table as JSON |
+| TestContainers | Integration tests spin up a real PostgreSQL container |
 
 ### Tests
 ```bash
 dotnet test tests/FinTrack.Tests
-# 22 tests total:
-#   18 unit tests  — run in <2s, no Docker needed
-#    4 integration tests — spin up real PostgreSQL via TestContainers
-```
-
-### New Project Structure (additions to Step 2)
-```
-FinTrackV2/
-├── src/
-│   ├── FinTrack.Domain/
-│   │   ├── Entities/Transaction.cs
-│   │   ├── Enums/TransactionType.cs
-│   │   ├── Events/              ← IDomainEvent, WalletCreatedEvent, TransactionCreatedEvent
-│   │   └── Errors/TransactionErrors.cs
-│   ├── FinTrack.Application/
-│   │   ├── Transactions/        ← CreateTransaction command, GetTransactions query
-│   │   └── Interfaces/          ← ITransactionRepository, IDomainEventDispatcher
-│   ├── FinTrack.Infrastructure/
-│   │   ├── Audit/               ← AuditLog entity, WalletCreatedAuditHandler, TransactionCreatedAuditHandler
-│   │   └── Events/DomainEventDispatcher.cs
-└── tests/FinTrack.Tests/
-    └── Integration/             ← DatabaseFixture (TestContainers), WalletIntegrationTests
+# 22 tests: 18 unit + 4 integration (real PostgreSQL via TestContainers)
 ```
 
 ---
 
 ## Step 4 — Resilience (`/FinTrackV2`, extended)
 
-Built on top of Step 3. Adds structured logging, rate limiting, and pagination.
+Adds structured logging, rate limiting, and pagination.
 
 ### New Patterns
 | Pattern | What it does |
 |---|---|
-| Serilog | Structured logging to console + rolling daily file — every request logs userId, method, path, status, duration |
-| Rate limiting | Auth endpoints: 5 req/min per IP. API endpoints: 60 req/min. Returns `429` with JSON error |
-| Pagination | `GET /transactions` accepts `?page=1&pageSize=20`, returns `PagedResult<T>` with metadata |
-
-### Pagination Response Shape
-```json
-{
-  "items": [...],
-  "page": 1,
-  "pageSize": 20,
-  "totalCount": 347,
-  "totalPages": 18,
-  "hasNextPage": true,
-  "hasPreviousPage": false
-}
-```
+| Serilog | Structured logging to console + rolling daily file |
+| Rate limiting | Auth: 5 req/min. API: 60 req/min. Returns 429 JSON |
+| Pagination | `GET /transactions` returns `PagedResult<T>` with metadata |
 
 ### Running Locally
 ```bash
@@ -230,13 +118,74 @@ cd FinTrackV2
 docker compose up -d
 dotnet run --project src/FinTrack.Api
 # API:  http://localhost:5153/docs
-# Logs: FinTrackV2/src/FinTrack.Api/logs/
+# Logs: src/FinTrack.Api/logs/
 ```
 
 ### Tests
 ```bash
 dotnet test tests/FinTrack.Tests
-# 22 tests — all passing (pagination tested via integration tests)
+# 22 tests passing
+```
+
+---
+
+## Step 5 — Events (`/FinTrackV2`, extended)
+
+Adds the Outbox pattern for reliable event delivery, a background job processor,
+in-app notifications, and an email service abstraction.
+
+### The Problem Step 5 Solves
+In Step 4, domain events are dispatched in-process immediately after `SaveChanges`.
+If the process crashes between the database commit and the dispatch, the event is
+silently lost. Step 5 fixes this with the Outbox pattern.
+
+### How the Outbox Pattern Works
+```
+POST /api/wallets/{id}/transactions
+  → CreateTransactionHandler
+    → wallet.Deposit(amount)
+    → Single DB transaction:
+        INSERT INTO Transactions ...
+        UPDATE Wallets SET Balance = ...
+        INSERT INTO OutboxMessages (Type, Payload)   ← event stored atomically
+    → HTTP 201 returned immediately
+
+  [5 seconds later — background]
+  OutboxProcessor (BackgroundService)
+    → SELECT * FROM OutboxMessages WHERE ProcessedAt IS NULL
+    → Deserialise JSON payload → MediatR.Publish()
+        → TransactionCreatedAuditHandler   → writes AuditLog
+        → TransactionNotificationHandler   → creates Notification + sends email
+    → UPDATE OutboxMessages SET ProcessedAt = NOW()
+```
+
+### New Endpoints
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | /api/notifications | ✅ | List notifications (newest first) |
+| PATCH | /api/notifications/{id}/read | ✅ | Mark notification as read |
+
+### New Patterns
+| Pattern | What it does |
+|---|---|
+| Outbox pattern | Events written atomically with business data — never silently lost |
+| BackgroundService | `OutboxProcessor` polls DB every 5s, dispatches via MediatR |
+| IEmailService | Abstraction over email providers — `ConsoleEmailService` in dev |
+| Notifications | In-app notification feed per user |
+
+### Running Locally
+```bash
+cd FinTrackV2
+docker compose up -d
+dotnet run --project src/FinTrack.Api
+# OutboxProcessor starts automatically
+# [EMAIL STUB] lines appear in console when events are dispatched
+```
+
+### Tests
+```bash
+dotnet test tests/FinTrack.Tests
+# 31 tests: 27 unit + 4 integration
 ```
 
 ---
@@ -247,5 +196,5 @@ dotnet test tests/FinTrack.Tests
 - [x] Step 2 — Clean Architecture (CQRS, MediatR, Result pattern, FluentValidation)
 - [x] Step 3 — Full Feature Set (domain events, transactions, audit log, TestContainers)
 - [x] Step 4 — Resilience (Serilog structured logging, rate limiting, pagination)
-- [ ] Step 5 — Events (Outbox pattern, background jobs, notifications)
+- [x] Step 5 — Events (Outbox pattern, BackgroundService, notifications, email stub)
 - [ ] Step 6 — Microservices (gRPC, RabbitMQ, MassTransit, API Gateway)
